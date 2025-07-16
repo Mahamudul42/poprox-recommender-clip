@@ -125,6 +125,7 @@ class ClipImageSelector:
     def _load_image_from_url(self, image_url: str) -> torch.Tensor:
         """Load and preprocess an image from a URL."""
         try:
+            logger.info(f"Loading image from URL: {image_url}")
             response = requests.get(image_url, timeout=5)
             response.raise_for_status()
             img = PILImage.open(BytesIO(response.content)).convert("RGB")
