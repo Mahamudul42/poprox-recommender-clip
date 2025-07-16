@@ -67,9 +67,10 @@ class ClipImageSelector:
     def _generate_user_embedding(self, interacted_articles: CandidateSet) -> torch.Tensor:
         """Generate user embedding by averaging embeddings of images from the last 50 clicked articles."""
         # Limit to the last 50 articles
+        num_interactions = 10
         recent_articles = (
-            interacted_articles.articles[-50:]
-            if len(interacted_articles.articles) > 50
+            interacted_articles.articles[-num_interactions:]
+            if len(interacted_articles.articles) > num_interactions
             else interacted_articles.articles
         )
 
@@ -79,7 +80,7 @@ class ClipImageSelector:
                 image_urls.extend([img.url for img in article.images if img.url])
 
         if not image_urls:
-            logger.warning("No valid image URLs found in the last 50 interacted articles.")
+            logger.warning(f"No valid image URLs found in the last {num_interactions} interacted articles.")
             return None
 
         # Embed images from clicked articles
