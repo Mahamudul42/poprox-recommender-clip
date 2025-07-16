@@ -8,6 +8,7 @@ from torchvision import transforms
 from transformers import CLIPModel, CLIPProcessor
 
 from poprox_concepts.domain import CandidateSet, InterestProfile, RecommendationList
+from poprox_recommender.paths import model_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +17,10 @@ class ClipImageSelector:
     def __init__(self, model_name: str = "openai/clip-vit-base-patch32", device: str = "cpu"):
         self.model_name = model_name
         self.device = device
-        self.clip_model = CLIPModel.from_pretrained(model_name).vision_model.to(device)
-        self.processor = CLIPProcessor.from_pretrained(model_name, use_fast=True)
+
+        model_path = model_file_path(model_name)
+        self.clip_model = CLIPModel.from_pretrained(model_path).vision_model.to(device)
+        self.processor = CLIPProcessor.from_pretrained(model_path, use_fast=True)
         self.transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
