@@ -19,8 +19,8 @@ class ClipImageSelector:
         self.device = device
 
         model_path = model_file_path(model_name)
-        self.clip_model = CLIPModel.from_pretrained(model_path).vision_model.to(device)
-        self.processor = CLIPProcessor.from_pretrained(model_path, use_fast=True)
+        self.clip_model = CLIPModel.from_pretrained(model_path, cache_dir="/tmp/").vision_model.to(device)
+        self.processor = CLIPProcessor.from_pretrained(model_path, cache_dir="/tmp/", use_fast=True)
         self.transform = Compose(
             [
                 Resize((224, 224)),
