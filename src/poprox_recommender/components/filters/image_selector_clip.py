@@ -4,7 +4,7 @@ from io import BytesIO
 import requests
 import torch
 from PIL import Image as PILImage
-from torchvision import transforms
+from torchvision.transforms import Compose, Normalize, Resize, ToTensor
 from transformers import CLIPModel, CLIPProcessor
 
 from poprox_concepts.domain import CandidateSet, InterestProfile, RecommendationList
@@ -21,13 +21,11 @@ class ClipImageSelector:
         model_path = model_file_path(model_name)
         self.clip_model = CLIPModel.from_pretrained(model_path).vision_model.to(device)
         self.processor = CLIPProcessor.from_pretrained(model_path, use_fast=True)
-        self.transform = transforms.Compose(
+        self.transform = Compose(
             [
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26130258, 0.26130258, 0.27577711]
-                ),
+                Resize((224, 224)),
+                ToTensor(),
+                Normalize(mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26130258, 0.26130258, 0.27577711]),
             ]
         )
         self.dim = 768
