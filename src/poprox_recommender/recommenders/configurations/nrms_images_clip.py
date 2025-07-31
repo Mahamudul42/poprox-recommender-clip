@@ -1,3 +1,6 @@
+from uuid import UUID
+
+import numpy as np
 from lenskit.pipeline import PipelineBuilder
 
 from poprox_concepts import CandidateSet, InterestProfile
@@ -18,6 +21,7 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
     i_candidates = builder.create_input("candidate", CandidateSet)
     i_clicked = builder.create_input("clicked", CandidateSet)
     i_profile = builder.create_input("profile", InterestProfile)
+    embedding_lookup_table = builder.create_input("embedding_lookup", dict[UUID, dict[str, np.ndarray]])
 
     # Embed candidate and clicked articles
     ae_config = NRMSArticleEmbedderConfig(
@@ -59,4 +63,6 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
         image_selector,
         recommendations=n_fill,
         interest_profile=e_user,
+        interacted_articles=i_clicked,
+        embedding_lookup=embedding_lookup_table,
     )
