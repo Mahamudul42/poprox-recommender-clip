@@ -57,10 +57,9 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
     n_fill = builder.add_component("fill", FillRecs, {"num_slots": num_slots}, recs1=n_ranker, recs2=n_sampler)
 
     # Image selection
-    image_selector = GenericImageSelector(device="cpu")
     builder.add_component(
         "recommender",
-        image_selector,
+        GenericImageSelector,
         recommendations=n_fill,
         interest_profile=e_user,
         interacted_articles=i_clicked,

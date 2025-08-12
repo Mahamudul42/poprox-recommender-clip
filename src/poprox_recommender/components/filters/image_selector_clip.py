@@ -1,20 +1,25 @@
 import logging
+from uuid import UUID
 
+import numpy as np
 import torch
+from lenskit import Component
 
 from poprox_concepts.domain import CandidateSet, InterestProfile, RecommendationList
 
 logger = logging.getLogger(__name__)
 
 
-class GenericImageSelector:
+class GenericImageSelector(Component):
+    config: None
+
     def __call__(
         self,
         recommendations: RecommendationList,
         interest_profile: InterestProfile,
         interacted_articles: CandidateSet,
-        embedding_lookup,
-        **kwargs,
+        embedding_lookup: dict[UUID, dict[str, np.ndarray]],
+        **kwargs: object,
     ) -> RecommendationList:
         # Generate user embedding from clicked article images
         clip_user_embedding = self._generate_user_embedding(interacted_articles, embedding_lookup)
@@ -32,7 +37,10 @@ class GenericImageSelector:
                 continue
 
             image_embeddings = torch.stack(
-                [torch.Tensor(embedding_lookup[image_id]["image"]) for image_id in image_ids]
+                [
+                    torch.Tensor(embedding_lookup.get("image_id", {}).get("image", np.zeros(768)))
+                    for image_id in image_ids
+                ]
             )
 
             if image_embeddings is not None:
@@ -60,7 +68,7 @@ class GenericImageSelector:
             logger.warning("No valid image URLs found in the last 50 interacted articles.")
             return None
 
-        image_embeddings = [torch.Tensor(embedding_lookup[image_id]["image"]) for image_id in image_ids]
+        image_embeddings = [torch.Tensor(embedding_lookup.get("image_id", {}).get("image", np.zeros(768)))]
 
         if image_embeddings is None:
             return None
