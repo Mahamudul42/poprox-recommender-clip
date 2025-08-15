@@ -29,6 +29,7 @@ def warmup(response: Response):
     response.headers["poprox-protocol-version"] = ProtocolModelV3_0().protocol_version.value
 
     # Load and cache available recommenders
+
     available_recommenders = load_all_pipelines(device=default_device())
 
     return list(available_recommenders.keys())

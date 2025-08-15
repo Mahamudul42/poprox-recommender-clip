@@ -37,10 +37,7 @@ class GenericImageSelector(Component):
                 continue
 
             image_embeddings = torch.stack(
-                [
-                    torch.Tensor(embedding_lookup.get("image_id", {}).get("image", np.zeros(768)))
-                    for image_id in image_ids
-                ]
+                [torch.Tensor(embedding_lookup.get(image_id, {}).get("image", np.zeros(768))) for image_id in image_ids]
             )
 
             if image_embeddings is not None:
@@ -68,7 +65,9 @@ class GenericImageSelector(Component):
             logger.warning("No valid image URLs found in the last 50 interacted articles.")
             return None
 
-        image_embeddings = [torch.Tensor(embedding_lookup.get("image_id", {}).get("image", np.zeros(768)))]
+        image_embeddings = [
+            torch.Tensor(embedding_lookup.get(image_id, {}).get("image", np.zeros(768))) for image_id in image_ids
+        ]
 
         if image_embeddings is None:
             return None
