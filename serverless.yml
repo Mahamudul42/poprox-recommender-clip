@@ -51,3 +51,6 @@ functions:
       - httpApi:
           path: /
           method: post
+      - httpApi:
+          path: /embed
+          method: post

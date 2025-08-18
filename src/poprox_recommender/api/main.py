@@ -5,9 +5,10 @@ from typing import Annotated, Any
 import numpy as np
 import structlog
 from fastapi import Body, FastAPI
-from fastapi.responses import Response
+from fastapi.responses import ORJSONResponse, Response
 from mangum import Mangum
 
+from poprox_concepts import Article
 from poprox_concepts.api.recommendations.v3 import ProtocolModelV3_0, RecommendationRequestV3, RecommendationResponseV3
 from poprox_recommender.api.gzip import GzipRoute
 from poprox_recommender.config import default_device
@@ -35,11 +36,21 @@ def warmup(response: Response):
     return list(available_recommenders.keys())
 
 
-@app.get("/embed")
-def embed(response: Response):
-    # TODO: Move the code from the test that computes embeddings into this route
-    # dict[UUID, dict[str, embedding]]
-    return {}
+# Article -> dict[UUID, dict[str, np.array]]
+@app.post("/embed")
+def embed(
+    body: Annotated[dict[str, Any], Body()],
+    pipeline: str | None = None,
+):
+    logger.info(f"Decoded body: {body}")
+
+    article = Article.model_validate(body)
+
+    embeddings = {}
+    if article.images:
+        for image in article.images:
+            embeddings[image.image_id] = {"image": None}  # embedding}
+    return ORJSONResponse(embeddings)
 
 
 @app.post("/")
