@@ -7,10 +7,20 @@ from lenskit.pipeline import PipelineBuilder
 
 from poprox_concepts import CandidateSet, InterestProfile
 from poprox_recommender.components.embedders import NRMSArticleEmbedder
-from poprox_recommender.components.embedders.article import NRMSArticleEmbedderConfig
-from poprox_recommender.components.embedders.user import NRMSUserEmbedder, NRMSUserEmbedderConfig
-from poprox_recommender.components.embedders.user_topic_prefs import UserOnboardingConfig, UserOnboardingEmbedder
-from poprox_recommender.components.filters.image_selector_clip import GenericImageSelector
+from poprox_recommender.components.embedders.article import (
+    NRMSArticleEmbedderConfig,
+)
+from poprox_recommender.components.embedders.user import (
+    NRMSUserEmbedder,
+    NRMSUserEmbedderConfig,
+)
+from poprox_recommender.components.embedders.user_topic_prefs import (
+    UserOnboardingConfig,
+    UserOnboardingEmbedder,
+)
+from poprox_recommender.components.filters.image_selector_clip import (
+    GenericImageSelector,
+)
 from poprox_recommender.components.joiners.score import ScoreFusion
 from poprox_recommender.components.rankers.topk import TopkRanker
 from poprox_recommender.components.scorers.article import ArticleScorer
@@ -24,19 +34,33 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
     i_clicked = builder.create_input("clicked", CandidateSet)
     i_profile = builder.create_input("profile", InterestProfile)
     # Pre-computed CLIP embeddings from V3 API
-    embedding_lookup_table = builder.create_input("embedding_lookup", dict[UUID, dict[str, np.ndarray]])
+    embedding_lookup_table = builder.create_input(
+        "embedding_lookup", dict[UUID, dict[str, np.ndarray]]
+    )
 
     # Embed candidate and clicked articles
     ae_config = NRMSArticleEmbedderConfig(
-        model_path=model_file_path("nrms-mind/news_encoder.safetensors"), device=device
+        model_path=model_file_path("nrms-mind/news_encoder.safetensors"),
+        device=device,
     )
-    e_candidates = builder.add_component("candidate-embedder", NRMSArticleEmbedder, ae_config, article_set=i_candidates)
+    e_candidates = builder.add_component(
+        "candidate-embedder",
+        NRMSArticleEmbedder,
+        ae_config,
+        article_set=i_candidates,
+    )
     e_clicked = builder.add_component(
-        "history-NRMSArticleEmbedder", NRMSArticleEmbedder, ae_config, article_set=i_clicked
+        "history-NRMSArticleEmbedder",
+        NRMSArticleEmbedder,
+        ae_config,
+        article_set=i_clicked,
     )
 
     # Embed the user (historical clicks)
-    ue_config = NRMSUserEmbedderConfig(model_path=model_file_path("nrms-mind/user_encoder.safetensors"), device=device)
+    ue_config = NRMSUserEmbedderConfig(
+        model_path=model_file_path("nrms-mind/user_encoder.safetensors"),
+        device=device,
+    )
     e_user = builder.add_component(
         "user-embedder",
         NRMSUserEmbedder,
@@ -81,7 +105,12 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
     )
 
     # Score and rank articles (history)
-    n_scorer = builder.add_component("scorer", ArticleScorer, candidate_articles=e_candidates, interest_profile=e_user)
+    n_scorer = builder.add_component(
+        "scorer",
+        ArticleScorer,
+        candidate_articles=e_candidates,
+        interest_profile=e_user,
+    )
 
     # Score and rank articles (topics)
     positive_topic_score = builder.add_component(
@@ -108,21 +137,26 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
 
     # Combine click and topic scoring
     fusion = builder.add_component(
-        "fusion", ScoreFusion, {"combiner": "avg"}, candidates1=n_scorer, candidates2=topic_fusion
+        "fusion",
+        ScoreFusion,
+        {"combiner": "avg"},
+        candidates1=n_scorer,
+        candidates2=topic_fusion,
     )
 
-    # Get the ranked recommendations (same as nrms_topic_scores)
-    ranked_recommendations = builder.add_component(
-        "ranked-recommendations", TopkRanker, {"num_slots": num_slots}, candidate_articles=fusion
+    # Article ranking (identical to nrms_topic_scores)
+    ranker = builder.add_component(
+        "ranker",
+        TopkRanker,
+        {"num_slots": num_slots},
+        candidate_articles=fusion,
     )
 
-    # Add image personalization on top of the existing recommendations
-    # This component selects personalized images for each article using CLIP embeddings
+    # Image personalization on top of the ranked articles
     builder.add_component(
         "recommender",
         GenericImageSelector,
-        recommendations=ranked_recommendations,
-        interest_profile=e_user,
+        recommendations=ranker,
         interacted_articles=i_clicked,
         embedding_lookup=embedding_lookup_table,
     )
