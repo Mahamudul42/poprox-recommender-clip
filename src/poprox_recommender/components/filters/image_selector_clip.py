@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from lenskit import Component
 
-from poprox_concepts.domain import CandidateSet, InterestProfile, RecommendationList
+from poprox_concepts.domain import CandidateSet, RecommendationList
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ class GenericImageSelector(Component):
     def __call__(
         self,
         recommendations: RecommendationList,
-        interest_profile: InterestProfile,
         interacted_articles: CandidateSet,
         embedding_lookup: dict[UUID, dict[str, np.ndarray]],
         **kwargs: object,

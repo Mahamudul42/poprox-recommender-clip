@@ -34,9 +34,7 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
     i_clicked = builder.create_input("clicked", CandidateSet)
     i_profile = builder.create_input("profile", InterestProfile)
     # Pre-computed CLIP embeddings from V3 API
-    embedding_lookup_table = builder.create_input(
-        "embedding_lookup", dict[UUID, dict[str, np.ndarray]]
-    )
+    embedding_lookup_table = builder.create_input("embedding_lookup", dict[UUID, dict[str, np.ndarray]])
 
     # Embed candidate and clicked articles
     ae_config = NRMSArticleEmbedderConfig(
