@@ -150,11 +150,14 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
         candidate_articles=fusion,
     )
 
-    # Image personalization on top of the ranked articles
+    # Image personalization on top of the ranked articles (post-processing)
     builder.add_component(
-        "recommender",
+        "image_personalizer",
         GenericImageSelector,
         recommendations=ranker,
         interacted_articles=i_clicked,
         embedding_lookup=embedding_lookup_table,
     )
+
+    # Expose personalized results as the recommender output
+    builder.alias("recommender", "image_personalizer")
