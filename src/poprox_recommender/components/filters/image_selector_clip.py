@@ -24,7 +24,10 @@ class GenericImageSelector(Component):
         # Generate user embedding from clicked article images
         clip_user_embedding = self._generate_user_embedding(interacted_articles, embedding_lookup)
         if clip_user_embedding is None:
+            logger.debug("No user embedding generated, returning original recommendations")
             return recommendations
+
+        logger.debug(f"Generated user embedding, personalizing images for {len(recommendations.articles)} articles")
 
         # Select best image for each article
         for article in recommendations.articles:
@@ -65,17 +68,24 @@ class GenericImageSelector(Component):
             elif article.images and len(article.images) > 0 and article.images[0].image_id in embedding_lookup:
                 image_id_to_use = article.images[0].image_id
 
-            if image_id_to_use and "image" in embedding_lookup[image_id_to_use]:
+            if (
+                image_id_to_use is not None
+                and image_id_to_use in embedding_lookup
+                and "image" in embedding_lookup[image_id_to_use]
+            ):
                 embedding_data = embedding_lookup[image_id_to_use]["image"]
                 embedding_tensor = torch.tensor(embedding_data, dtype=torch.float32)
                 valid_embeddings.append(embedding_tensor)
 
         if not valid_embeddings:
+            logger.debug(f"No valid embeddings found from {len(interacted_articles.articles)} interacted articles")
             return None
 
-        # Average and normalize
+        logger.debug(f"Generated user embedding from {len(valid_embeddings)} valid image embeddings")
+
+        # Average and normalize (with epsilon to avoid division by zero)
         user_embedding = torch.mean(torch.stack(valid_embeddings), dim=0)
-        user_embedding = user_embedding / torch.norm(user_embedding)
+        user_embedding = user_embedding / (torch.norm(user_embedding) + 1e-8)
 
         return user_embedding
 
@@ -84,8 +94,9 @@ class GenericImageSelector(Component):
         if len(images) == 0:
             return None
 
-        # Normalize image embeddings
-        image_embeddings_norm = image_embeddings / torch.norm(image_embeddings, dim=1, keepdim=True)
+        # Normalize image embeddings (with epsilon to avoid division by zero)
+        norms = torch.norm(image_embeddings, dim=1, keepdim=True)
+        image_embeddings_norm = image_embeddings / (norms + 1e-8)
 
         # Compute similarities
         similarities = torch.matmul(image_embeddings_norm, user_embedding)
