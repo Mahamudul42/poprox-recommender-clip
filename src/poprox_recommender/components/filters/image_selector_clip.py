@@ -56,11 +56,19 @@ class GenericImageSelector(Component):
         valid_embeddings = []
 
         for article in interacted_articles.articles[-50:]:  # Use last 50 articles
+            image_id_to_use = None
+
+            # Try preview_image_id first (for articles with personalized images)
             if article.preview_image_id and article.preview_image_id in embedding_lookup:
-                if "image" in embedding_lookup[article.preview_image_id]:
-                    embedding_data = embedding_lookup[article.preview_image_id]["image"]
-                    embedding_tensor = torch.tensor(embedding_data, dtype=torch.float32)
-                    valid_embeddings.append(embedding_tensor)
+                image_id_to_use = article.preview_image_id
+            # Fallback to first image if preview_image_id not available (for older articles)
+            elif article.images and len(article.images) > 0 and article.images[0].image_id in embedding_lookup:
+                image_id_to_use = article.images[0].image_id
+
+            if image_id_to_use and "image" in embedding_lookup[image_id_to_use]:
+                embedding_data = embedding_lookup[image_id_to_use]["image"]
+                embedding_tensor = torch.tensor(embedding_data, dtype=torch.float32)
+                valid_embeddings.append(embedding_tensor)
 
         if not valid_embeddings:
             return None
