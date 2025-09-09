@@ -40,42 +40,76 @@ def get_clip_model():
     """Get cached CLIP model or load it if not cached"""
     global _clip_model, _clip_preprocess
     if _clip_model is None:
-        device = default_device()
-        logger.info(f"Loading CLIP model on device: {device}")
-        # _clip_model, _clip_preprocess = clip.load("ViT-L/14", device=device)
-        model_path = model_file_path("openai/clip-vit-base-patch32")  # 768 dimensions
-        _clip_model = CLIPModel.from_pretrained(model_path).vision_model.to(device)
-        _clip_preprocess = CLIPProcessor.from_pretrained(model_path, use_fast=True)
-        logger.info("CLIP model loaded successfully")
+        try:
+            device = default_device()
+            logger.info(f"Loading CLIP model on device: {device}")
+            # _clip_model, _clip_preprocess = clip.load("ViT-L/14", device=device)
+            model_path = model_file_path("openai/clip-vit-base-patch32")  # 768 dimensions
+
+            # Load model components with error handling
+            full_model = CLIPModel.from_pretrained(model_path)
+            _clip_model = full_model.vision_model.to(device)
+            _clip_preprocess = CLIPProcessor.from_pretrained(model_path, use_fast=True)
+
+            logger.info("CLIP model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load CLIP model: {e}")
+            raise RuntimeError(f"Failed to load CLIP model: {e}")
     return _clip_model, _clip_preprocess
 
 
 def generate_clip_embedding(image):
     """Generate CLIP embedding for a single image"""
-    model, preprocess = get_clip_model()
-    device = default_device()
+    try:
+        model, preprocess = get_clip_model()
+        device = default_device()
 
-    # Download and process image
-    if not (hasattr(image, "url") and image.url):
-        raise ValueError(f"No URL found for image {image.image_id}")
+        # Download and process image
+        if not (hasattr(image, "url") and image.url):
+            raise ValueError(f"No URL found for image {image.image_id}")
 
-    response = requests.get(image.url, timeout=10)
-    response.raise_for_status()
-    pil_image = Image.open(BytesIO(response.content)).convert("RGB")
+        response = requests.get(image.url, timeout=30)  # Increased timeout
+        response.raise_for_status()
 
-    # Preprocess and encode
-    image_tensor = preprocess(images=pil_image, return_tensors="pt")["pixel_values"].to(device)
+        if len(response.content) == 0:
+            raise ValueError(f"Empty image content from URL: {image.url}")
 
-    with torch.no_grad():
-        image_features = model.encode_image(image_tensor)
-        # Normalize the features
-        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+        pil_image = Image.open(BytesIO(response.content)).convert("RGB")
 
-    # Convert to list for JSON serialization
-    embedding = image_features.cpu().numpy().flatten().tolist()
-    logger.debug(f"Generated embedding of dimension {len(embedding)} for image {image.image_id}")
+        # Validate image dimensions
+        if pil_image.size[0] == 0 or pil_image.size[1] == 0:
+            raise ValueError(f"Invalid image dimensions: {pil_image.size}")
 
-    return embedding
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to download image {image.image_id} from {image.url}: {e}")
+        raise ValueError(f"Failed to download image: {e}")
+    except Exception as e:
+        logger.error(f"Failed to process image {image.image_id}: {e}")
+        raise ValueError(f"Failed to process image: {e}")
+
+    try:
+        # Preprocess and encode
+        image_tensor = preprocess(images=pil_image, return_tensors="pt")["pixel_values"].to(device)
+
+        with torch.no_grad():
+            image_features = model(image_tensor).last_hidden_state.mean(dim=1)
+            # Normalize the features
+            norm = image_features.norm(dim=-1, keepdim=True)
+            image_features = image_features / (norm + 1e-8)  # Add epsilon to prevent division by zero
+
+        # Convert to list for JSON serialization
+        embedding = image_features.cpu().numpy().flatten().tolist()
+
+        # Validate embedding
+        if len(embedding) == 0:
+            raise ValueError("Generated empty embedding")
+
+        logger.debug(f"Generated embedding of dimension {len(embedding)} for image {image.image_id}")
+        return embedding
+
+    except Exception as e:
+        logger.error(f"Failed to generate CLIP embedding for image {image.image_id}: {e}")
+        raise ValueError(f"Failed to generate CLIP embedding: {e}")
 
 
 @app.get("/warmup")
