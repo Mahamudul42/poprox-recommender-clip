@@ -64,7 +64,7 @@ def generate_clip_embedding(image):
     pil_image = Image.open(BytesIO(response.content)).convert("RGB")
 
     # Preprocess and encode
-    image_tensor = preprocess(pil_image).unsqueeze(0).to(device)
+    image_tensor = preprocess(images=pil_image, return_tensors="pt")["pixel_values"].to(device)
 
     with torch.no_grad():
         image_features = model.encode_image(image_tensor)
