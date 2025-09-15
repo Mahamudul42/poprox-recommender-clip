@@ -32,7 +32,9 @@ class SelectiveImageSelector(Component):
         personalize_odd = random.choice([True, False])
         logger.debug(f"Personalizing {'odd' if personalize_odd else 'even'} positioned articles")
 
-        logger.debug(f"Generated user embedding, personalizing images for ~50% of {len(recommendations.articles)} articles")
+        logger.debug(
+            f"Generated user embedding, personalizing images for ~50% of {len(recommendations.articles)} articles"
+        )
 
         # Select best image for each article based on position
         for idx, article in enumerate(recommendations.articles):
@@ -41,7 +43,9 @@ class SelectiveImageSelector(Component):
 
             # Check if this article should be personalized based on its position
             is_odd_position = (idx % 2) == 0  # 0-indexed, so 0, 2, 4... are "odd" positions
-            should_personalize = (personalize_odd and is_odd_position) or (not personalize_odd and not is_odd_position)
+            should_personalize = (personalize_odd and is_odd_position) or (
+                not personalize_odd and not is_odd_position
+            )
 
             if not should_personalize:
                 continue
@@ -77,7 +81,11 @@ class SelectiveImageSelector(Component):
             if article.preview_image_id and article.preview_image_id in embedding_lookup:
                 image_id_to_use = article.preview_image_id
             # Fallback to first image if preview_image_id not available (for older articles)
-            elif article.images and len(article.images) > 0 and article.images[0].image_id in embedding_lookup:
+            elif (
+                article.images
+                and len(article.images) > 0
+                and article.images[0].image_id in embedding_lookup
+            ):
                 image_id_to_use = article.images[0].image_id
 
             if (
@@ -90,7 +98,9 @@ class SelectiveImageSelector(Component):
                 valid_embeddings.append(embedding_tensor)
 
         if not valid_embeddings:
-            logger.debug(f"No valid embeddings found from {len(interacted_articles.articles)} interacted articles")
+            logger.debug(
+                f"No valid embeddings found from {len(interacted_articles.articles)} interacted articles"
+            )
             return None
 
         logger.debug(f"Generated user embedding from {len(valid_embeddings)} valid image embeddings")
