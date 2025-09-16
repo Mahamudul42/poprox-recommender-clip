@@ -42,9 +42,9 @@ class SelectiveImageSelector(Component):
                 continue
 
             # Check if this article should be personalized based on its position
-            is_odd_position = (idx % 2) == 0  # 0-indexed, so 0, 2, 4... are "odd" positions
-            should_personalize = (personalize_odd and is_odd_position) or (
-                not personalize_odd and not is_odd_position
+            is_even_position = (idx % 2) == 0  # 0-indexed, so 0, 2, 4... are even positions
+            should_personalize = (personalize_odd and not is_even_position) or (
+                not personalize_odd and is_even_position
             )
 
             if not should_personalize:

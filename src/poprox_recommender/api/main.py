@@ -43,7 +43,6 @@ def get_clip_model():
         try:
             device = default_device()
             logger.info(f"Loading CLIP model on device: {device}")
-            # _clip_model, _clip_preprocess = clip.load("ViT-L/14", device=device)
             model_path = model_file_path("openai/clip-vit-base-patch32")  # 768 dimensions
 
             # Load model components with error handling
@@ -54,7 +53,7 @@ def get_clip_model():
             logger.info("CLIP model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load CLIP model: {e}")
-            raise RuntimeError(f"Failed to load CLIP model: {e}")
+            raise RuntimeError(f"Failed to load CLIP model: {e}") from e
     return _clip_model, _clip_preprocess
 
 
@@ -82,10 +81,10 @@ def generate_clip_embedding(image):
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to download image {image.image_id} from {image.url}: {e}")
-        raise ValueError(f"Failed to download image: {e}")
+        raise ValueError(f"Failed to download image: {e}") from e
     except Exception as e:
         logger.error(f"Failed to process image {image.image_id}: {e}")
-        raise ValueError(f"Failed to process image: {e}")
+        raise ValueError(f"Failed to process image: {e}") from e
 
     try:
         # Preprocess and encode
@@ -109,7 +108,47 @@ def generate_clip_embedding(image):
 
     except Exception as e:
         logger.error(f"Failed to generate CLIP embedding for image {image.image_id}: {e}")
-        raise ValueError(f"Failed to generate CLIP embedding: {e}")
+        raise ValueError(f"Failed to generate CLIP embedding: {e}") from e
+
+
+def generate_clip_text_embedding(text: str):
+    """Generate CLIP embedding for text - uses full model for text encoding"""
+    try:
+        # For text embeddings, we need the full model, not just vision_model
+        device = default_device()
+        model_path = model_file_path("openai/clip-vit-base-patch32")
+
+        # Load full model temporarily for text processing
+        full_model = CLIPModel.from_pretrained(model_path).to(device)
+        processor = CLIPProcessor.from_pretrained(model_path, use_fast=True)
+
+        # Validate text input
+        if not text or not text.strip():
+            raise ValueError("Empty or invalid text input")
+
+        # Process text with explicit tensor extraction (safest approach)
+        inputs = processor(text=[text.strip()], return_tensors="pt", padding=True, truncation=True)
+        input_ids = inputs["input_ids"].to(device)
+        attention_mask = inputs["attention_mask"].to(device)
+
+        with torch.no_grad():
+            text_features = full_model.get_text_features(input_ids=input_ids, attention_mask=attention_mask)
+            # Normalize the features
+            text_features = text_features / (text_features.norm(dim=-1, keepdim=True) + 1e-8)
+
+        # Convert to list for JSON serialization
+        embedding = text_features.cpu().numpy().flatten().tolist()
+
+        # Validate embedding
+        if len(embedding) == 0:
+            raise ValueError("Generated empty text embedding")
+
+        logger.debug(f"Generated text embedding of dimension {len(embedding)}")
+        return embedding
+
+    except Exception as e:
+        logger.error(f"Failed to generate CLIP text embedding: {e}")
+        raise ValueError(f"Failed to generate CLIP text embedding: {e}") from e
 
 
 @app.get("/warmup")
@@ -141,18 +180,43 @@ def embed(
     article = Article.model_validate(body)
     embeddings = {}
 
+    # Generate text embedding for the article
+    article_text_embedding = None
+    if hasattr(article, 'title') and article.title and article.title.strip():
+        try:
+            # Use title as primary text, fallback to subtitle if available
+            text_to_embed = article.title.strip()
+            if hasattr(article, 'subtitle') and article.subtitle and article.subtitle.strip():
+                text_to_embed = f"{article.title.strip()} {article.subtitle.strip()}"
+
+            article_text_embedding = generate_clip_text_embedding(text_to_embed)
+            logger.debug(f"Generated text embedding for article {article.article_id}")
+        except Exception as e:
+            logger.warning(f"Failed to generate text embedding for article {article.article_id}: {e}")
+
+    # Store article-level embeddings (text)
+    if article_text_embedding:
+        embeddings[article.article_id] = {"text": article_text_embedding}
+
+    # Generate image embeddings
     if article.images:
         logger.info(f"Processing {len(article.images)} images for article {article.article_id}")
 
         # Generate embeddings for each image - let failures propagate
         for image in article.images:
-            embedding_vector = generate_clip_embedding(image)
-            embeddings[image.image_id] = {"image": embedding_vector}
-            logger.debug(f"Generated embedding for image {image.image_id}")
+            try:
+                embedding_vector = generate_clip_embedding(image)
+                embeddings[image.image_id] = {"image": embedding_vector}
+                logger.debug(f"Generated embedding for image {image.image_id}")
+            except Exception as e:
+                logger.warning(f"Failed to generate embedding for image {image.image_id}: {e}")
+                # Continue processing other images even if one fails
     else:
         logger.info(f"No images found for article {article.article_id}")
 
-    logger.info(f"Generated embeddings for {len(embeddings)} images")
+    total_embeddings = len([k for k, v in embeddings.items() if "image" in v])
+    text_embeddings = len([k for k, v in embeddings.items() if "text" in v])
+    logger.info(f"Generated embeddings: {total_embeddings} images, {text_embeddings} text")
     return ORJSONResponse(embeddings)
 
 
