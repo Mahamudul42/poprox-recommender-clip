@@ -32,6 +32,7 @@ def test_direct_basic_request():
             req.candidates,
             req.interacted,
             req.interest_profile,
+            {},  # empty embedding_lookup for smoke test
         )
     except PipelineLoadError as e:
         if allow_data_test_failures():
@@ -63,6 +64,7 @@ def test_direct_basic_request_without_clicks():
             req.candidates,
             req.interacted,
             req.interest_profile,
+            {},  # empty embedding_lookup for smoke test
         )
     except PipelineLoadError as e:
         if allow_data_test_failures():
@@ -88,7 +90,11 @@ def test_direct_basic_request_explicit_none():
     logger.info("generating recommendations")
     try:
         outputs = select_articles(
-            req.candidates, req.interacted, req.interest_profile, pipeline_params={"pipeline": None}
+            req.candidates,
+            req.interacted,
+            req.interest_profile,
+            {},  # empty embedding_lookup for smoke test
+            pipeline_params={"pipeline": None},
         )
     except PipelineLoadError as e:
         if allow_data_test_failures():
