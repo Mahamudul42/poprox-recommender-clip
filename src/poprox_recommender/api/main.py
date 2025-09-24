@@ -43,7 +43,6 @@ def get_clip_model():
         try:
             device = default_device()
             logger.info(f"Loading CLIP model on device: {device}")
-            # _clip_model, _clip_preprocess = clip.load("ViT-L/14", device=device)
             model_path = model_file_path("openai/clip-vit-base-patch32")  # 768 dimensions
 
             # Load model components with error handling
@@ -54,7 +53,7 @@ def get_clip_model():
             logger.info("CLIP model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load CLIP model: {e}")
-            raise RuntimeError(f"Failed to load CLIP model: {e}")
+            raise RuntimeError(f"Failed to load CLIP model: {e}") from e
     return _clip_model, _clip_preprocess
 
 
@@ -82,10 +81,10 @@ def generate_clip_embedding(image):
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to download image {image.image_id} from {image.url}: {e}")
-        raise ValueError(f"Failed to download image: {e}")
+        raise ValueError(f"Failed to download image: {e}") from e
     except Exception as e:
         logger.error(f"Failed to process image {image.image_id}: {e}")
-        raise ValueError(f"Failed to process image: {e}")
+        raise ValueError(f"Failed to process image: {e}") from e
 
     try:
         # Preprocess and encode
@@ -109,7 +108,7 @@ def generate_clip_embedding(image):
 
     except Exception as e:
         logger.error(f"Failed to generate CLIP embedding for image {image.image_id}: {e}")
-        raise ValueError(f"Failed to generate CLIP embedding: {e}")
+        raise ValueError(f"Failed to generate CLIP embedding: {e}") from e
 
 
 @app.get("/warmup")
@@ -141,18 +140,24 @@ def embed(
     article = Article.model_validate(body)
     embeddings = {}
 
+    # Generate image embeddings
     if article.images:
         logger.info(f"Processing {len(article.images)} images for article {article.article_id}")
 
         # Generate embeddings for each image - let failures propagate
         for image in article.images:
-            embedding_vector = generate_clip_embedding(image)
-            embeddings[image.image_id] = {"image": embedding_vector}
-            logger.debug(f"Generated embedding for image {image.image_id}")
+            try:
+                embedding_vector = generate_clip_embedding(image)
+                embeddings[image.image_id] = {"image": embedding_vector}
+                logger.debug(f"Generated embedding for image {image.image_id}")
+            except Exception as e:
+                logger.warning(f"Failed to generate embedding for image {image.image_id}: {e}")
+                # Continue processing other images even if one fails
     else:
         logger.info(f"No images found for article {article.article_id}")
 
-    logger.info(f"Generated embeddings for {len(embeddings)} images")
+    total_embeddings = len([k for k, v in embeddings.items() if "image" in v])
+    logger.info(f"Generated embeddings: {total_embeddings} images")
     return ORJSONResponse(embeddings)
 
 
