@@ -36,10 +36,25 @@ class SelectiveImageSelector(Component):
             f"Generated user embedding, personalizing images for ~50% of {len(recommendations.articles)} articles"
         )
 
+        # Initialize extras if not present
+        if not recommendations.extras:
+            recommendations.extras = [{} for _ in recommendations.articles]
+
+        # Ensure extras list has the same length as articles
+        while len(recommendations.extras) < len(recommendations.articles):
+            recommendations.extras.append({})
+
+        # Track personalization statistics
+        personalized_count = 0
+        total_articles_with_images = 0
+
         # Select best image for each article based on position
         for idx, article in enumerate(recommendations.articles):
-            if not article.images:
-                continue
+            # Initialize extra dict for this article if needed
+            if recommendations.extras[idx] is None:
+                recommendations.extras[idx] = {}
+
+            extra = recommendations.extras[idx]
 
             # Check if this article should be personalized based on its position
             is_even_position = (idx % 2) == 0  # 0-indexed, so 0, 2, 4... are even positions
@@ -47,7 +62,25 @@ class SelectiveImageSelector(Component):
                 not personalize_odd and is_even_position
             )
 
+            # Log personalization decision for all articles (regardless of whether they have images)
+            extra["clip_personalization"] = {
+                "strategy": "selective",
+                "personalize_odd_positions": personalize_odd,
+                "article_position": idx,
+                "is_even_position": is_even_position,
+                "should_personalize": should_personalize,
+                "was_personalized": False,  # Will be updated below if actually personalized
+                "original_preview_image_id": str(article.preview_image_id) if article.preview_image_id else None,
+            }
+
+            if not article.images:
+                extra["clip_personalization"]["personalization_skipped_reason"] = "no_images"
+                continue
+
+            total_articles_with_images += 1
+
             if not should_personalize:
+                extra["clip_personalization"]["personalization_skipped_reason"] = "position_not_selected"
                 continue
 
             # Get embeddings for all images in this article
@@ -67,6 +100,25 @@ class SelectiveImageSelector(Component):
                 best_image = self._select_best_image(image_embeddings, clip_user_embedding, valid_images)
                 if best_image:
                     article.preview_image_id = best_image.image_id
+                    personalized_count += 1
+
+                    # Update personalization logging
+                    extra["clip_personalization"]["was_personalized"] = True
+                    extra["clip_personalization"]["new_preview_image_id"] = str(best_image.image_id)
+                    extra["clip_personalization"]["num_image_options"] = len(valid_images)
+                    extra["clip_personalization"]["total_images"] = len(article.images)
+                else:
+                    extra["clip_personalization"]["personalization_skipped_reason"] = "no_best_image_selected"
+            else:
+                extra["clip_personalization"]["personalization_skipped_reason"] = "no_valid_embeddings"
+
+        # Log final statistics
+        logger.info(
+            f"CLIP Selective Personalization Summary: "
+            f"Personalized {personalized_count}/{total_articles_with_images} articles with images "
+            f"({personalized_count}/{len(recommendations.articles)} total articles). "
+            f"Strategy: {'odd' if personalize_odd else 'even'} positions"
+        )
 
         return recommendations
 
@@ -81,11 +133,7 @@ class SelectiveImageSelector(Component):
             if article.preview_image_id and article.preview_image_id in embedding_lookup:
                 image_id_to_use = article.preview_image_id
             # Fallback to first image if preview_image_id not available (for older articles)
-            elif (
-                article.images
-                and len(article.images) > 0
-                and article.images[0].image_id in embedding_lookup
-            ):
+            elif article.images and len(article.images) > 0 and article.images[0].image_id in embedding_lookup:
                 image_id_to_use = article.images[0].image_id
 
             if (
@@ -98,9 +146,7 @@ class SelectiveImageSelector(Component):
                 valid_embeddings.append(embedding_tensor)
 
         if not valid_embeddings:
-            logger.debug(
-                f"No valid embeddings found from {len(interacted_articles.articles)} interacted articles"
-            )
+            logger.debug(f"No valid embeddings found from {len(interacted_articles.articles)} interacted articles")
             return None
 
         logger.debug(f"Generated user embedding from {len(valid_embeddings)} valid image embeddings")
