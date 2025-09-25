@@ -155,3 +155,7 @@ $RECYCLE.BIN/
 # pixi environments
 .pixi
 *.egg-info
+
+# Models and outputs
+models/
+outputs/
