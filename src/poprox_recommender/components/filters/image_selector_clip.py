@@ -29,6 +29,9 @@ class GenericImageSelector(Component):
 
         logger.debug(f"Generated user embedding, personalizing images for {len(recommendations.articles)} articles")
 
+        # Store original preview image IDs for comparison
+        original_preview_image_ids = [article.preview_image_id for article in recommendations.articles]
+
         # Select best image for each article
         for article in recommendations.articles:
             if not article.images:
@@ -51,6 +54,21 @@ class GenericImageSelector(Component):
                 best_image = self._select_best_image(image_embeddings, clip_user_embedding, valid_images)
                 if best_image:
                     article.preview_image_id = best_image.image_id
+
+        # Add minimal extras for consistency
+        if not recommendations.extras:
+            recommendations.extras = [{} for _ in recommendations.articles]
+        for idx, article in enumerate(recommendations.articles):
+            if recommendations.extras[idx] is None:
+                recommendations.extras[idx] = {}
+            recommendations.extras[idx]["image_personalization"] = {
+                "strategy": "full",
+                "attempted": True,
+                "succeeded": article.preview_image_id is not None,
+                "personalized": article.preview_image_id is not None,
+                "total_images": len(article.images) if article.images else 0,
+                "original_preview_image_id": original_preview_image_ids[idx],
+            }
 
         return recommendations
 

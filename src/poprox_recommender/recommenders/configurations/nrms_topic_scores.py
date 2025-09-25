@@ -1,5 +1,6 @@
 # pyright: basic
 
+from lenskit import Component
 from lenskit.pipeline import PipelineBuilder
 
 from poprox_concepts import CandidateSet, InterestProfile
@@ -12,8 +13,20 @@ from poprox_recommender.components.rankers.topk import TopkRanker
 from poprox_recommender.components.scorers.article import ArticleScorer
 from poprox_recommender.paths import model_file_path
 
-##TODO:
-# allow weigths for the scores (1/-1)
+
+class AddExtras(Component):
+    def __call__(self, recommendations):
+        if not recommendations.extras:
+            recommendations.extras = [{} for _ in recommendations.articles]
+        for idx, extra in enumerate(recommendations.extras):
+            if not extra:
+                article = recommendations.articles[idx]
+                extra["image_personalization"] = {
+                    "strategy": "none",
+                    "personalized": False,
+                    "total_images": len(article.images) if article.images else 0,
+                }
+        return recommendations
 
 
 def configure(builder: PipelineBuilder, num_slots: int, device: str):
@@ -108,4 +121,6 @@ def configure(builder: PipelineBuilder, num_slots: int, device: str):
         "fusion", ScoreFusion, {"combiner": "avg"}, candidates1=n_scorer, candidates2=topic_fusion
     )
 
-    builder.add_component("recommender", TopkRanker, {"num_slots": num_slots}, candidate_articles=fusion)
+    ranker = builder.add_component("ranker", TopkRanker, {"num_slots": num_slots}, candidate_articles=fusion)
+
+    builder.add_component("recommender", AddExtras, recommendations=ranker)

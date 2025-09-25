@@ -63,24 +63,25 @@ class SelectiveImageSelector(Component):
             )
 
             # Log personalization decision for all articles (regardless of whether they have images)
-            extra["clip_personalization"] = {
+            recommendations.extras[idx]["image_personalization"] = {
                 "strategy": "selective",
-                "personalize_odd_positions": personalize_odd,
-                "article_position": idx,
-                "is_even_position": is_even_position,
-                "should_personalize": should_personalize,
-                "was_personalized": False,  # Will be updated below if actually personalized
-                "original_preview_image_id": str(article.preview_image_id) if article.preview_image_id else None,
+                "attempted": should_personalize,
+                "succeeded": article.preview_image_id is not None,
+                "personalized": article.preview_image_id is not None,
+                "total_images": len(article.images) if article.images else 0,
+                "position": idx,
+                "original_preview_image_id": article.preview_image_id,
+                "new_preview_image_id": article.preview_image_id,
             }
 
             if not article.images:
-                extra["clip_personalization"]["personalization_skipped_reason"] = "no_images"
+                extra["image_personalization"]["personalization_skipped_reason"] = "no_images"
                 continue
 
             total_articles_with_images += 1
 
             if not should_personalize:
-                extra["clip_personalization"]["personalization_skipped_reason"] = "position_not_selected"
+                extra["image_personalization"]["personalization_skipped_reason"] = "position_not_selected"
                 continue
 
             # Get embeddings for all images in this article
@@ -103,14 +104,12 @@ class SelectiveImageSelector(Component):
                     personalized_count += 1
 
                     # Update personalization logging
-                    extra["clip_personalization"]["was_personalized"] = True
-                    extra["clip_personalization"]["new_preview_image_id"] = str(best_image.image_id)
-                    extra["clip_personalization"]["num_image_options"] = len(valid_images)
-                    extra["clip_personalization"]["total_images"] = len(article.images)
+                    extra["image_personalization"]["new_preview_image_id"] = str(best_image.image_id)
+                    extra["image_personalization"]["total_images"] = len(article.images)
                 else:
-                    extra["clip_personalization"]["personalization_skipped_reason"] = "no_best_image_selected"
+                    extra["image_personalization"]["personalization_skipped_reason"] = "no_best_image_selected"
             else:
-                extra["clip_personalization"]["personalization_skipped_reason"] = "no_valid_embeddings"
+                extra["image_personalization"]["personalization_skipped_reason"] = "no_valid_embeddings"
 
         # Log final statistics
         logger.info(

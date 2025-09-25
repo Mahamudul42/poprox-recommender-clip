@@ -43,7 +43,7 @@ def get_clip_model():
         try:
             device = default_device()
             logger.info(f"Loading CLIP model on device: {device}")
-            model_path = model_file_path("openai/clip-vit-base-patch32")  # 768 dimensions
+            model_path = model_file_path("openai")  # 768 dimensions
 
             # Load model components with error handling
             full_model = CLIPModel.from_pretrained(model_path)
